@@ -20,7 +20,7 @@
         </p>
         <div class="hero-actions">
             <a href="{{ url_for('register') }}" class="btn-primary">Create free account</a>
-            <a href="#" class="btn-ghost">See how it works</a>
+            <a href="#" id="seeHowItWorksBtn" class="btn-ghost">See how it works</a>
         </div>
     </div>
     <div class="hero-visual">
@@ -72,6 +72,15 @@
         </div>
     </div>
 </section>
+
+<div class="modal-overlay" id="demoModalOverlay" hidden>
+    <div class="modal">
+        <button type="button" class="modal-close" id="demoModalClose" aria-label="Close">&times;</button>
+        <div class="modal-video-wrap">
+            <iframe id="demoModalIframe" class="modal-iframe" src="about:blank" title="Spendly demo video" frameborder="0" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+        </div>
+    </div>
+</div>
 
 <section class="features">
     <div class="features-inner">
