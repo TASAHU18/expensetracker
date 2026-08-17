@@ -1,7 +1,7 @@
 import calendar
 import os
 import sqlite3
-from datetime import date
+from datetime import date, datetime
 
 from werkzeug.security import generate_password_hash
 
@@ -117,3 +117,100 @@ def create_user(name, email, password_hash):
         return cursor.lastrowid
     finally:
         conn.close()
+
+
+def get_profile_user(user_id):
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT id, name, email, created_at FROM users WHERE id = ?", (user_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if row is None:
+        return None
+
+    return {
+        "name": row["name"],
+        "email": row["email"],
+        "initials": _derive_initials(row["name"]),
+        "member_since": _format_member_since(row["created_at"]),
+    }
+
+
+def get_expense_totals(user_id):
+    conn = get_db()
+    try:
+        row = conn.execute(
+            """SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS count
+               FROM expenses WHERE user_id = ?""",
+            (user_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    return {"total_spent": round(row["total"], 2), "transaction_count": row["count"]}
+
+
+def get_recent_transactions(user_id, limit=10):
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            """SELECT date, description, category, amount FROM expenses
+               WHERE user_id = ? ORDER BY date DESC, created_at DESC LIMIT ?""",
+            (user_id, limit),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    transactions = []
+    for row in rows:
+        transactions.append({
+            "date": datetime.strptime(row["date"], "%Y-%m-%d").strftime("%b %d, %Y"),
+            "description": row["description"] or "",
+            "category": row["category"],
+            "amount": round(row["amount"], 2),
+        })
+    return transactions
+
+
+def get_category_breakdown(user_id):
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            """SELECT category, COALESCE(SUM(amount), 0) AS total FROM expenses
+               WHERE user_id = ? GROUP BY category ORDER BY total DESC""",
+            (user_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    grand_total = sum(row["total"] for row in rows)
+
+    categories = []
+    for row in rows:
+        percent = round(row["total"] / grand_total * 100) if grand_total else 0
+        width_n = min(100, max(0, round(percent / 5) * 5))
+        categories.append({
+            "name": row["category"],
+            "amount": round(row["total"], 2),
+            "percent": percent,
+            "width_class": f"profile-bar-w-{width_n}",
+        })
+    return categories
+
+
+# ---- formatting helpers (no DB access) ----
+
+def _derive_initials(name):
+    parts = name.strip().split()
+    if not parts:
+        return ""
+    if len(parts) == 1:
+        return parts[0][0].upper()
+    return (parts[0][0] + parts[-1][0]).upper()
+
+
+def _format_member_since(created_at):
+    return datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S").strftime("%B %Y")
