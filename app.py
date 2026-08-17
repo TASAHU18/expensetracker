@@ -1,4 +1,5 @@
 import os
+from datetime import date, datetime
 
 from flask import Flask, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -109,6 +110,83 @@ def logout():
     return redirect(url_for("landing"))
 
 
+# ------------------------------------------------------------------ #
+# Profile date filter                                                 #
+# ------------------------------------------------------------------ #
+
+PRESETS = {"month": 0, "3months": 2, "6months": 5}
+PRESET_LABELS = [
+    ("all", "All Time"),
+    ("month", "This Month"),
+    ("3months", "Last 3 Months"),
+    ("6months", "Last 6 Months"),
+]
+
+
+def _parse_date(value):
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _months_ago_start(today, n):
+    month = today.month - n
+    year = today.year
+    while month <= 0:
+        month += 12
+        year -= 1
+    return date(year, month, 1)
+
+
+def _format_display_date(value):
+    return datetime.strptime(value, "%Y-%m-%d").strftime("%b %d, %Y") if value else ""
+
+
+def _build_date_filter(args):
+    today = date.today()
+    range_param = args.get("range", "").strip().lower()
+    selected_range = "all"
+
+    start_date = end_date = None
+    filter_error = None
+
+    if range_param in PRESETS:
+        start_date = _months_ago_start(today, PRESETS[range_param]).strftime("%Y-%m-%d")
+        end_date = today.strftime("%Y-%m-%d")
+        selected_range = range_param
+    elif range_param != "all":
+        raw_start = args.get("start_date", "")
+        raw_end = args.get("end_date", "")
+
+        if raw_start or raw_end:
+            selected_range = "custom"
+
+        if raw_start and raw_end:
+            parsed_start = _parse_date(raw_start)
+            parsed_end = _parse_date(raw_end)
+            if parsed_start and parsed_end:
+                if parsed_start > parsed_end:
+                    filter_error = "Start date must be on or before end date."
+                else:
+                    start_date = parsed_start.strftime("%Y-%m-%d")
+                    end_date = parsed_end.strftime("%Y-%m-%d")
+            else:
+                filter_error = "Enter valid dates in YYYY-MM-DD format."
+
+    return {
+        "active": bool(start_date and end_date),
+        "start_date": start_date or "",
+        "end_date": end_date or "",
+        "start_display": _format_display_date(start_date),
+        "end_display": _format_display_date(end_date),
+        "error": filter_error,
+        "selected_range": selected_range,
+    }
+
+
 @app.route("/profile")
 def profile():
     if not session.get("user_id"):
@@ -119,9 +197,15 @@ def profile():
         session.clear()
         return redirect(url_for("login"))
 
-    totals = get_expense_totals(session["user_id"])
-    transactions = get_recent_transactions(session["user_id"], limit=10)
-    categories = get_category_breakdown(session["user_id"])
+    date_filter = _build_date_filter(request.args)
+    start_date = date_filter["start_date"]
+    end_date = date_filter["end_date"]
+
+    totals = get_expense_totals(session["user_id"], start_date, end_date)
+    transactions = get_recent_transactions(
+        session["user_id"], limit=10, start_date=start_date, end_date=end_date
+    )
+    categories = get_category_breakdown(session["user_id"], start_date, end_date)
 
     stats = {
         "total_spent": totals["total_spent"],
@@ -135,6 +219,8 @@ def profile():
         stats=stats,
         transactions=transactions,
         categories=categories,
+        date_filter=date_filter,
+        preset_labels=PRESET_LABELS,
     )
 
 
