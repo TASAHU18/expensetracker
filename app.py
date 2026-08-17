@@ -3,7 +3,17 @@ import os
 from flask import Flask, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from database.db import create_user, get_db, get_user_by_email, init_db, seed_db
+from database.db import (
+    create_user,
+    get_category_breakdown,
+    get_db,
+    get_expense_totals,
+    get_profile_user,
+    get_recent_transactions,
+    get_user_by_email,
+    init_db,
+    seed_db,
+)
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # regenerated each run, so sessions don't survive a restart
@@ -104,39 +114,20 @@ def profile():
     if not session.get("user_id"):
         return redirect(url_for("login"))
 
-    user = {
-        "name": "Demo User",
-        "email": "demo@spendly.com",
-        "initials": "DU",
-        "member_since": "March 2025",
-    }
+    user = get_profile_user(session["user_id"])
+    if user is None:
+        session.clear()
+        return redirect(url_for("login"))
+
+    totals = get_expense_totals(session["user_id"])
+    transactions = get_recent_transactions(session["user_id"], limit=10)
+    categories = get_category_breakdown(session["user_id"])
 
     stats = {
-        "total_spent": 285.25,
-        "transaction_count": 8,
-        "top_category": "Bills",
+        "total_spent": totals["total_spent"],
+        "transaction_count": totals["transaction_count"],
+        "top_category": categories[0]["name"] if categories else "—",
     }
-
-    transactions = [
-        {"date": "Aug 14, 2026", "description": "Groceries", "category": "Food", "amount": 18.75},
-        {"date": "Aug 12, 2026", "description": "New shoes", "category": "Shopping", "amount": 60.00},
-        {"date": "Aug 10, 2026", "description": "Miscellaneous", "category": "Other", "amount": 12.00},
-        {"date": "Aug 08, 2026", "description": "Movie tickets", "category": "Entertainment", "amount": 30.00},
-        {"date": "Aug 06, 2026", "description": "Pharmacy", "category": "Health", "amount": 40.00},
-        {"date": "Aug 04, 2026", "description": "Electricity bill", "category": "Bills", "amount": 85.00},
-        {"date": "Aug 02, 2026", "description": "Bus fare", "category": "Transport", "amount": 15.00},
-        {"date": "Jul 30, 2026", "description": "Lunch at cafe", "category": "Food", "amount": 24.50},
-    ]
-
-    categories = [
-        {"name": "Bills", "amount": 85.00, "percent": 30, "width_class": "profile-bar-w-30"},
-        {"name": "Shopping", "amount": 60.00, "percent": 21, "width_class": "profile-bar-w-20"},
-        {"name": "Food", "amount": 43.25, "percent": 15, "width_class": "profile-bar-w-15"},
-        {"name": "Health", "amount": 40.00, "percent": 14, "width_class": "profile-bar-w-15"},
-        {"name": "Entertainment", "amount": 30.00, "percent": 11, "width_class": "profile-bar-w-10"},
-        {"name": "Transport", "amount": 15.00, "percent": 5, "width_class": "profile-bar-w-5"},
-        {"name": "Other", "amount": 12.00, "percent": 4, "width_class": "profile-bar-w-5"},
-    ]
 
     return render_template(
         "profile.html",
