@@ -139,28 +139,49 @@ def get_profile_user(user_id):
     }
 
 
-def get_expense_totals(user_id):
+# A date range is only applied when both bounds are present — this lets every
+# caller pass through raw optional start_date/end_date without checking first.
+def _apply_date_range(sql, params, start_date, end_date):
+    if start_date and end_date:
+        sql += " AND date BETWEEN ? AND ?"
+        params += [start_date, end_date]
+    return sql, params
+
+
+# Filtered ranges intentionally show every matching row (not just the usual
+# "recent" cap), but this bounds a very wide custom range from returning an
+# unbounded result set.
+MAX_FILTERED_TRANSACTIONS = 500
+
+
+def get_expense_totals(user_id, start_date=None, end_date=None):
+    sql = """SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS count
+             FROM expenses WHERE user_id = ?"""
+    params = [user_id]
+    sql, params = _apply_date_range(sql, params, start_date, end_date)
+
     conn = get_db()
     try:
-        row = conn.execute(
-            """SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS count
-               FROM expenses WHERE user_id = ?""",
-            (user_id,),
-        ).fetchone()
+        row = conn.execute(sql, params).fetchone()
     finally:
         conn.close()
 
     return {"total_spent": round(row["total"], 2), "transaction_count": row["count"]}
 
 
-def get_recent_transactions(user_id, limit=10):
+def get_recent_transactions(user_id, limit=10, start_date=None, end_date=None):
+    sql = "SELECT date, description, category, amount FROM expenses WHERE user_id = ?"
+    params = [user_id]
+
+    filtered = bool(start_date and end_date)
+    sql, params = _apply_date_range(sql, params, start_date, end_date)
+
+    sql += " ORDER BY date DESC, created_at DESC LIMIT ?"
+    params.append(MAX_FILTERED_TRANSACTIONS if filtered else limit)
+
     conn = get_db()
     try:
-        rows = conn.execute(
-            """SELECT date, description, category, amount FROM expenses
-               WHERE user_id = ? ORDER BY date DESC, created_at DESC LIMIT ?""",
-            (user_id, limit),
-        ).fetchall()
+        rows = conn.execute(sql, params).fetchall()
     finally:
         conn.close()
 
@@ -175,14 +196,15 @@ def get_recent_transactions(user_id, limit=10):
     return transactions
 
 
-def get_category_breakdown(user_id):
+def get_category_breakdown(user_id, start_date=None, end_date=None):
+    sql = "SELECT category, COALESCE(SUM(amount), 0) AS total FROM expenses WHERE user_id = ?"
+    params = [user_id]
+    sql, params = _apply_date_range(sql, params, start_date, end_date)
+    sql += " GROUP BY category ORDER BY total DESC"
+
     conn = get_db()
     try:
-        rows = conn.execute(
-            """SELECT category, COALESCE(SUM(amount), 0) AS total FROM expenses
-               WHERE user_id = ? GROUP BY category ORDER BY total DESC""",
-            (user_id,),
-        ).fetchall()
+        rows = conn.execute(sql, params).fetchall()
     finally:
         conn.close()
 

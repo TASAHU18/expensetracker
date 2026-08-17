@@ -20,6 +20,36 @@
             </div>
         </div>
 
+        <div class="profile-filter-bar">
+            <div class="profile-filter-presets">
+                {% for value, label in preset_labels %}
+                <a href="{{ url_for('profile', range=value) }}" class="profile-filter-pill {{ 'profile-filter-pill-active' if date_filter.selected_range == value }}">{{ label }}</a>
+                {% endfor %}
+            </div>
+
+            <span class="profile-filter-divider"></span>
+
+            <form method="GET" action="{{ url_for('profile') }}" class="profile-filter-form">
+                <input type="date" name="start_date" class="form-input profile-filter-input"
+                       value="{{ date_filter.start_date }}" aria-label="Start date">
+                <span class="profile-filter-to">to</span>
+                <input type="date" name="end_date" class="form-input profile-filter-input"
+                       value="{{ date_filter.end_date }}" aria-label="End date">
+                <button type="submit" class="btn-primary profile-filter-apply">Apply</button>
+            </form>
+        </div>
+
+        {% if date_filter.error %}
+        <div class="profile-filter-error">{{ date_filter.error }}</div>
+        {% endif %}
+
+        {% if date_filter.active %}
+        <p class="profile-filter-active">
+            Showing {{ date_filter.start_display }} – {{ date_filter.end_display }}
+            <a href="{{ url_for('profile') }}" class="profile-filter-clear">Clear</a>
+        </p>
+        {% endif %}
+
         <div class="profile-stats">
             <div class="profile-stat">
                 <span class="profile-stat-label">Total spent</span>
@@ -37,6 +67,9 @@
 
         <div class="profile-panel">
             <h2 class="profile-panel-title">Recent transactions</h2>
+            {% if date_filter.active and not transactions %}
+            <p class="profile-empty-state">No transactions found between {{ date_filter.start_display }} and {{ date_filter.end_display }}.</p>
+            {% else %}
             <div class="profile-table-scroll">
                 <table class="profile-table">
                     <thead>
@@ -59,6 +92,7 @@
                     </tbody>
                 </table>
             </div>
+            {% endif %}
         </div>
 
         <div class="profile-panel">
