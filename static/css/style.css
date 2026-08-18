@@ -104,6 +104,16 @@ a { color: inherit; text-decoration: none; }
 .nav-links a { color: var(--ink-muted); transition: color 0.2s; }
 .nav-links a:hover { color: var(--ink); }
 
+.nav-links a.nav-link-active {
+    color: var(--accent);
+    background: var(--accent-light);
+    font-weight: 600;
+    padding: 0.35rem 0.75rem;
+    border-radius: var(--radius-sm);
+}
+
+.nav-links a.nav-link-active:hover { color: var(--accent); }
+
 .nav-cta {
     background: var(--ink) !important;
     color: var(--paper) !important;

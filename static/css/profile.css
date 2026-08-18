@@ -127,6 +127,18 @@
     margin-bottom: 1.25rem;
 }
 
+.profile-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.profile-panel-header .profile-panel-title {
+    margin-bottom: 0;
+}
+
 /* ------------------------------------------------------------------ */
 /* Date filter panel                                                   */
 /* ------------------------------------------------------------------ */
@@ -385,6 +397,7 @@
     .profile-user-card { flex-direction: column; align-items: flex-start; text-align: left; }
     .profile-table { min-width: 480px; }
     .profile-panel { padding: 1.25rem; }
+    .profile-panel-header { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
     .profile-filter-bar { flex-direction: column; align-items: stretch; }
     .profile-filter-divider { display: none; }
     .profile-filter-form { flex-direction: column; align-items: stretch; }
