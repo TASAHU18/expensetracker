@@ -66,7 +66,10 @@
         </div>
 
         <div class="profile-panel">
-            <h2 class="profile-panel-title">Recent transactions</h2>
+            <div class="profile-panel-header">
+                <h2 class="profile-panel-title">Recent transactions</h2>
+                <a href="{{ url_for('add_expense') }}" class="btn-primary">Add Expense</a>
+            </div>
             {% if date_filter.active and not transactions %}
             <p class="profile-empty-state">No transactions found between {{ date_filter.start_display }} and {{ date_filter.end_display }}.</p>
             {% else %}

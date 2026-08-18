@@ -1,3 +1,4 @@
+import math
 import os
 from datetime import date, datetime
 
@@ -5,6 +6,8 @@ from flask import Flask, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from database.db import (
+    CATEGORIES,
+    create_expense,
     create_user,
     get_category_breakdown,
     get_db,
@@ -231,9 +234,80 @@ def analytics():
     return render_template("analytics.html")
 
 
-@app.route("/expenses/add")
+MAX_DESCRIPTION_LENGTH = 200
+
+
+def _validate_expense_form(amount_raw, category, date_raw):
+    if not amount_raw or not category or not date_raw:
+        return None, None, "Amount, category, and date are required."
+
+    try:
+        amount = float(amount_raw)
+        # float() happily parses "nan"/"inf" as valid numbers, but those
+        # aren't valid amounts and would break the NOT NULL insert below.
+        if not math.isfinite(amount):
+            raise ValueError
+    except ValueError:
+        return None, None, "Enter a valid amount."
+
+    if amount <= 0:
+        return None, None, "Amount must be greater than zero."
+
+    if category not in CATEGORIES:
+        return None, None, "Select a valid category."
+
+    expense_date = _parse_date(date_raw)
+    if expense_date is None:
+        return None, None, "Enter a valid date."
+
+    return amount, expense_date, None
+
+
+@app.route("/expenses/add", methods=["GET", "POST"])
 def add_expense():
-    return "Add expense — coming in Step 7"
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    if request.method == "GET":
+        form_values = {
+            "amount": "",
+            "category": "",
+            "date": date.today().strftime("%Y-%m-%d"),
+            "description": "",
+        }
+        return render_template(
+            "add_expense.html", categories=CATEGORIES, form_values=form_values
+        )
+
+    amount_raw = request.form.get("amount", "").strip()
+    category = request.form.get("category", "").strip()
+    date_raw = request.form.get("date", "").strip()
+    description = request.form.get("description", "").strip()[:MAX_DESCRIPTION_LENGTH]
+
+    form_values = {
+        "amount": amount_raw,
+        "category": category,
+        "date": date_raw,
+        "description": description,
+    }
+
+    amount, expense_date, error = _validate_expense_form(amount_raw, category, date_raw)
+    if error:
+        return render_template(
+            "add_expense.html",
+            categories=CATEGORIES,
+            form_values=form_values,
+            error=error,
+        )
+
+    create_expense(
+        session["user_id"],
+        amount,
+        category,
+        expense_date.strftime("%Y-%m-%d"),
+        description or None,
+    )
+    return redirect(url_for("profile"))
 
 
 @app.route("/expenses/<int:id>/edit")
