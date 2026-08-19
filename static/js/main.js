@@ -27,3 +27,17 @@
         if (event.target === overlay) closeModal();
     });
 })();
+
+(function () {
+    var deleteForms = document.querySelectorAll(".profile-delete-form");
+    if (!deleteForms.length) return;
+
+    deleteForms.forEach(function (form) {
+        form.addEventListener("submit", function (event) {
+            var confirmed = confirm("Delete this expense? This cannot be undone.");
+            if (!confirmed) {
+                event.preventDefault();
+            }
+        });
+    });
+})();
