@@ -2,11 +2,11 @@ import tempfile
 
 import pytest
 
-import database.db as db
+from database import db
 
 db.DB_PATH = tempfile.mkstemp(suffix=".db")[1]
 
-import app as app_module  # noqa: E402  (import deferred until DB_PATH is redirected)
+import app as app_module  # import deferred until DB_PATH is redirected
 
 
 @pytest.fixture
@@ -44,12 +44,13 @@ def insert_expense(db_path):
     def _insert(user_id, category, amount, date_str, description=None):
         conn = db.get_db()
         try:
-            conn.execute(
+            cursor = conn.execute(
                 """INSERT INTO expenses (user_id, category, amount, date, description)
                    VALUES (?, ?, ?, ?, ?)""",
                 (user_id, category, amount, date_str, description),
             )
             conn.commit()
+            return cursor.lastrowid
         finally:
             conn.close()
 

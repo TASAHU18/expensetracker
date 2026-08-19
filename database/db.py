@@ -10,7 +10,15 @@ DB_PATH = os.path.join(
     "expense_tracker.db",
 )
 
-CATEGORIES = ["Food", "Transport", "Bills", "Health", "Entertainment", "Shopping", "Other"]
+CATEGORIES = [
+    "Food",
+    "Transport",
+    "Bills",
+    "Health",
+    "Entertainment",
+    "Shopping",
+    "Other",
+]
 
 
 def get_db():
@@ -23,7 +31,8 @@ def get_db():
 def init_db():
     conn = get_db()
     try:
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
@@ -31,8 +40,10 @@ def init_db():
                 password_hash TEXT NOT NULL,
                 created_at TEXT DEFAULT (datetime('now'))
             )
-        """)
-        conn.execute("""
+        """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS expenses (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
@@ -43,7 +54,8 @@ def init_db():
                 created_at TEXT DEFAULT (datetime('now')),
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )
-        """)
+        """
+        )
         conn.commit()
     finally:
         conn.close()
@@ -99,9 +111,7 @@ def seed_db():
 def get_user_by_email(email):
     conn = get_db()
     try:
-        return conn.execute(
-            "SELECT * FROM users WHERE email = ?", (email,)
-        ).fetchone()
+        return conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
     finally:
         conn.close()
 
@@ -129,6 +139,42 @@ def create_expense(user_id, amount, category, expense_date, description):
         )
         conn.commit()
         return cursor.lastrowid
+    finally:
+        conn.close()
+
+
+def get_expense_by_id(expense_id, user_id):
+    conn = get_db()
+    try:
+        row = conn.execute(
+            """SELECT id, amount, category, date, description
+               FROM expenses WHERE id = ? AND user_id = ?""",
+            (expense_id, user_id),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if row is None:
+        return None
+
+    return {
+        "id": row["id"],
+        "amount": row["amount"],
+        "category": row["category"],
+        "date": row["date"],
+        "description": row["description"] or "",
+    }
+
+
+def update_expense(expense_id, user_id, amount, category, expense_date, description):
+    conn = get_db()
+    try:
+        conn.execute(
+            """UPDATE expenses SET amount = ?, category = ?, date = ?, description = ?
+               WHERE id = ? AND user_id = ?""",
+            (amount, category, expense_date, description, expense_id, user_id),
+        )
+        conn.commit()
     finally:
         conn.close()
 
@@ -184,7 +230,9 @@ def get_expense_totals(user_id, start_date=None, end_date=None):
 
 
 def get_recent_transactions(user_id, limit=10, start_date=None, end_date=None):
-    sql = "SELECT date, description, category, amount FROM expenses WHERE user_id = ?"
+    sql = (
+        "SELECT id, date, description, category, amount FROM expenses WHERE user_id = ?"
+    )
     params = [user_id]
 
     filtered = bool(start_date and end_date)
@@ -201,12 +249,17 @@ def get_recent_transactions(user_id, limit=10, start_date=None, end_date=None):
 
     transactions = []
     for row in rows:
-        transactions.append({
-            "date": datetime.strptime(row["date"], "%Y-%m-%d").strftime("%b %d, %Y"),
-            "description": row["description"] or "",
-            "category": row["category"],
-            "amount": round(row["amount"], 2),
-        })
+        transactions.append(
+            {
+                "id": row["id"],
+                "date": datetime.strptime(row["date"], "%Y-%m-%d").strftime(
+                    "%b %d, %Y"
+                ),
+                "description": row["description"] or "",
+                "category": row["category"],
+                "amount": round(row["amount"], 2),
+            }
+        )
     return transactions
 
 
@@ -228,16 +281,19 @@ def get_category_breakdown(user_id, start_date=None, end_date=None):
     for row in rows:
         percent = round(row["total"] / grand_total * 100) if grand_total else 0
         width_n = min(100, max(0, round(percent / 5) * 5))
-        categories.append({
-            "name": row["category"],
-            "amount": round(row["total"], 2),
-            "percent": percent,
-            "width_class": f"profile-bar-w-{width_n}",
-        })
+        categories.append(
+            {
+                "name": row["category"],
+                "amount": round(row["total"], 2),
+                "percent": percent,
+                "width_class": f"profile-bar-w-{width_n}",
+            }
+        )
     return categories
 
 
 # ---- formatting helpers (no DB access) ----
+
 
 def _derive_initials(name):
     parts = name.strip().split()
