@@ -2,7 +2,7 @@ import math
 import os
 from datetime import date, datetime
 
-from flask import Flask, redirect, render_template, request, session, url_for
+from flask import Flask, abort, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from database.db import (
@@ -10,17 +10,20 @@ from database.db import (
     create_expense,
     create_user,
     get_category_breakdown,
-    get_db,
+    get_expense_by_id,
     get_expense_totals,
     get_profile_user,
     get_recent_transactions,
     get_user_by_email,
     init_db,
     seed_db,
+    update_expense,
 )
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)  # regenerated each run, so sessions don't survive a restart
+app.secret_key = os.urandom(
+    24
+)  # regenerated each run, so sessions don't survive a restart
 
 with app.app_context():
     init_db()
@@ -30,6 +33,7 @@ with app.app_context():
 # ------------------------------------------------------------------ #
 # Routes                                                              #
 # ------------------------------------------------------------------ #
+
 
 @app.route("/")
 def landing():
@@ -105,6 +109,7 @@ def privacy():
 # ------------------------------------------------------------------ #
 # Placeholder routes — students will implement these                  #
 # ------------------------------------------------------------------ #
+
 
 @app.route("/logout")
 def logout():
@@ -263,6 +268,23 @@ def _validate_expense_form(amount_raw, category, date_raw):
     return amount, expense_date, None
 
 
+def _read_expense_form(form):
+    amount_raw = form.get("amount", "").strip()
+    category = form.get("category", "").strip()
+    date_raw = form.get("date", "").strip()
+    description = form.get("description", "").strip()[:MAX_DESCRIPTION_LENGTH]
+
+    form_values = {
+        "amount": amount_raw,
+        "category": category,
+        "date": date_raw,
+        "description": description,
+    }
+
+    amount, expense_date, error = _validate_expense_form(amount_raw, category, date_raw)
+    return form_values, amount, expense_date, error
+
+
 @app.route("/expenses/add", methods=["GET", "POST"])
 def add_expense():
     if not session.get("user_id"):
@@ -279,19 +301,7 @@ def add_expense():
             "add_expense.html", categories=CATEGORIES, form_values=form_values
         )
 
-    amount_raw = request.form.get("amount", "").strip()
-    category = request.form.get("category", "").strip()
-    date_raw = request.form.get("date", "").strip()
-    description = request.form.get("description", "").strip()[:MAX_DESCRIPTION_LENGTH]
-
-    form_values = {
-        "amount": amount_raw,
-        "category": category,
-        "date": date_raw,
-        "description": description,
-    }
-
-    amount, expense_date, error = _validate_expense_form(amount_raw, category, date_raw)
+    form_values, amount, expense_date, error = _read_expense_form(request.form)
     if error:
         return render_template(
             "add_expense.html",
@@ -303,16 +313,55 @@ def add_expense():
     create_expense(
         session["user_id"],
         amount,
-        category,
+        form_values["category"],
         expense_date.strftime("%Y-%m-%d"),
-        description or None,
+        form_values["description"] or None,
     )
     return redirect(url_for("profile"))
 
 
-@app.route("/expenses/<int:id>/edit")
+@app.route("/expenses/<int:id>/edit", methods=["GET", "POST"])
 def edit_expense(id):
-    return "Edit expense — coming in Step 8"
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    expense = get_expense_by_id(id, session["user_id"])
+    if expense is None:
+        abort(404)
+
+    if request.method == "GET":
+        form_values = {
+            "amount": expense["amount"],
+            "category": expense["category"],
+            "date": expense["date"],
+            "description": expense["description"],
+        }
+        return render_template(
+            "edit_expense.html",
+            categories=CATEGORIES,
+            form_values=form_values,
+            expense_id=id,
+        )
+
+    form_values, amount, expense_date, error = _read_expense_form(request.form)
+    if error:
+        return render_template(
+            "edit_expense.html",
+            categories=CATEGORIES,
+            form_values=form_values,
+            expense_id=id,
+            error=error,
+        )
+
+    update_expense(
+        id,
+        session["user_id"],
+        amount,
+        form_values["category"],
+        expense_date.strftime("%Y-%m-%d"),
+        form_values["description"] or None,
+    )
+    return redirect(url_for("profile"))
 
 
 @app.route("/expenses/<int:id>/delete")

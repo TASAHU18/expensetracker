@@ -273,6 +273,22 @@
     white-space: nowrap;
 }
 
+.profile-table-action {
+    text-align: right;
+    white-space: nowrap;
+    width: 1%;
+}
+
+.profile-edit-link {
+    color: var(--accent);
+    font-size: 0.85rem;
+    text-decoration: underline;
+}
+
+.profile-edit-link:hover {
+    color: var(--accent-vivid);
+}
+
 /* ------------------------------------------------------------------ */
 /* Category badges                                                     */
 /* ------------------------------------------------------------------ */
